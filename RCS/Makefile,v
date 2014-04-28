@@ -1,0 +1,110 @@
+head	1.1;
+access;
+symbols;
+locks
+	marcelo:1.1; strict;
+comment	@# @;
+
+
+1.1
+date	2005.11.09.19.16.20;	author marcelo;	state Exp;
+branches;
+next	;
+
+
+desc
+@Makefile for mailmonitor
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@#=============================================================================#
+# Universidade Federal do Rio de Janeiro
+# Escola Politécnica
+# Departamento de Eletrônica e de Computação
+# Professor Marcelo Luiz Drumond Lanza
+# Internet and TCP/IP Architecture
+# Authors: Marcelo Duffles Donato Moreira
+# Description: Makefile for mailmonitor
+# Date: 08/11/2005
+#=============================================================================#
+
+#=============================================================================#
+# Makefile
+#
+# mailmonitor - Mail Monitor Implementation - Anti-Spam and Anti-Virus
+# by Marcelo Duffles Donato Moreira <marcelo@@gta.ufrj.br>
+# Copyright (C) 2005 Marcelo Duffles Donato Moreira
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#=============================================================================#
+
+
+#=============================================================================#
+#============================== RCS's COMMENTS ===============================#
+#=============================================================================#
+# $Author$
+# $Date$ 
+#	
+# $Log$
+#=============================================================================#
+#=============================================================================#
+#=============================================================================#
+
+
+#=============================================================================#
+#================================ COMPILER ===================================#
+#=============================================================================#
+CC = gcc
+#=============================================================================#
+#=============================== LINK-EDITOR =================================#
+#=============================================================================#
+LD = gcc 
+#=============================================================================#
+#================================== FLAGS ====================================#
+#=============================================================================#
+CFLAGS = -Wall -c -g
+LFLAGS = -Wall -o 
+#=============================================================================#
+#============================== OBJECT CODES =================================#
+#=============================================================================#
+MAILMONITOR_OBJS = mailmonitor.o functions.o
+#=============================================================================#
+#============================ EXECUTABLE FILES ===============================#
+#=============================================================================#
+EXECS = mailmonitor
+#=============================================================================#
+#============================== IMPLICIT RULE ================================#
+#=============================================================================#
+.c.o:
+	$(CC) $(CFLAGS) $<
+#=============================================================================#
+#================================= LABELS ====================================#
+#=============================================================================#
+all: $(EXECS)
+
+mailmonitor:	$(MAILMONITOR_OBJS)
+	$(LD) $(LFLAGS) $@@ $(MAILMONITOR_OBJS)
+	
+clean:
+	rm -rf *.o *~ $(EXECS)
+#=============================================================================#
+#=============================================================================#
+
+# $RCSfile$@

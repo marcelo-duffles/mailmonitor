@@ -1,0 +1,183 @@
+//===========================================================================//
+// Universidade Federal do Rio de Janeiro
+// Escola Politécnica
+// Departamento de Eletrônica e de Computação
+// Professor Marcelo Luiz Drumond Lanza
+// Internet and TCP/IP Architecture
+// Author: Marcelo Duffles Donato Moreira <marcelo@gta.ufrj.br>
+// Description: Login CGI source file
+// Date: 14/12/2005
+//===========================================================================//
+//
+//===========================================================================//
+// mailmonitor - Mail Monitor Implementation - Anti-Spam and Anti-virus
+// by Marcelo Duffles Donato Moreira <marcelo@gta.ufrj.br>
+// Copyright (C) 2005 Marcelo Duffles Donato Moreira
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program; if not, write to the Free Software
+// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+//===========================================================================//
+
+
+/* 
+ * RCS COMMENTS
+ *
+ * $Author: marceloddm $
+ * $Date: 2005/12/23 18:08:11 $
+ * 
+ * $Log: login.c,v $
+ * Revision 1.1  2005/12/23 18:08:11  marceloddm
+ * Initial revision
+ *
+ *
+ */
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include "mlcgi.h"
+#include "const.h"
+#include "config.h"
+#include "functions.h"
+
+
+static const char rcsid [] = "$Id: login.c,v 1.1 2005/12/23 18:08:11 marceloddm Exp marceloddm $";
+
+
+int main (int argc, char **argv)
+{
+  unsigned ret;	
+  char username [MAX_USERNAME_LEN + 1];
+  char pass [MAX_PASS_LEN + 1];
+  char cookieName[MAX_USERNAME_LEN +1];
+  char cookieValue[COOKIE_VALUE_LENGTH +1];
+  char *cookieFileName;
+  time_t cookieExpiration;
+
+  if ((ret = mlCgiInitialize ()) != ML_CGI_OK)
+  {
+    showHtmlErrorPage (E_LOGIN_CGI);
+    exit (ML_CGI_OK);
+  }
+
+  if (!isCgi)
+  {
+    log_msg (error_messages[E_IS_NOT_CGI]);
+    exit (ML_CGI_OK);
+  }
+	  
+  mlCgiBeginHttpHeader ("text/html");
+    
+  if ((ret = mlCgiGetFormStringNoNewLines ("username", username, MAX_USERNAME_LEN)) != ML_CGI_OK)
+  {
+    mlCgiEndHttpHeader ();
+    mlCgiFreeResources ();
+    if (ret == ML_CGI_FORM_FIELD_NOT_FOUND)
+      showHtmlErrorPage (E_USERNAME_NOT_FOUND);
+    if (ret == ML_CGI_INVALID_FORM_LENGTH)
+      showHtmlErrorPage (E_INVALID_USERNAME_LEN);
+    exit (ML_CGI_OK);
+  }
+
+  if ((ret = mlCgiGetFormStringNoNewLines ("password", pass, MAX_PASS_LEN)) != ML_CGI_OK)
+  {
+    mlCgiEndHttpHeader ();
+    mlCgiFreeResources ();
+    if (ret == ML_CGI_FORM_FIELD_NOT_FOUND)
+      showHtmlErrorPage (E_PASS_NOT_FOUND);
+    if (ret == ML_CGI_INVALID_FORM_LENGTH)
+      showHtmlErrorPage (E_INVALID_PASS_LEN);
+    exit (ML_CGI_OK);
+  }
+
+  if ((ret = autenticateUser (username, pass)) != OK)
+  {
+    mlCgiEndHttpHeader ();
+    mlCgiFreeResources ();
+    showHtmlErrorPage (ret);
+    exit (ML_CGI_OK);
+  }
+
+  strcpy (cookieName, username);
+
+  if ((ret = cookieFileExist (username)) != OK)
+    if (ret != E_COOKIE_FILE_DOES_NOT_EXIST)
+    {
+      mlCgiEndHttpHeader ();
+      mlCgiFreeResources ();
+      showHtmlErrorPage (ret);
+      exit (ML_CGI_OK);
+    }
+  
+  if (ret != E_COOKIE_FILE_DOES_NOT_EXIST)
+  {
+    if ((ret = getCookieValue (cookieName, cookieValue)) != OK)
+    {
+      mlCgiEndHttpHeader ();
+      mlCgiFreeResources ();
+      showHtmlErrorPage (ret);
+      exit (ML_CGI_OK);
+    }
+    if ((ret = mlCgiSetCookie (cookieName, cookieValue, 0, NULL, NULL, NULL)) != ML_CGI_OK)
+    {
+      mlCgiEndHttpHeader();
+      mlCgiFreeResources ();
+      showHtmlErrorPage (E_SET_COOKIE);
+      exit (ML_CGI_OK); 
+    }
+    cookieFileName = getLongFilename (COOKIES_DIR, cookieName);
+    if (cookieFileName == NULL)
+    {
+      mlCgiEndHttpHeader();
+      mlCgiFreeResources ();
+      showHtmlErrorPage (E_LOGIN_CGI);
+      exit (ML_CGI_OK); 
+    }
+    remove (cookieFileName); 
+  }
+  
+  if ((ret = createRandomString (COOKIE_VALUE_VALID_CHARACTERS, COOKIE_VALUE_LENGTH, cookieValue)) != OK)
+  {
+    mlCgiEndHttpHeader();
+    mlCgiFreeResources ();
+    showHtmlErrorPage (ret);
+    exit (ML_CGI_OK); 
+  }
+  
+  cookieExpiration = COOKIE_EXPIRATION + time (NULL);   
+  if ((ret = createNewCookieFile (cookieName, cookieValue, cookieExpiration, mlCgiEnvironmentVariablesValues[ML_CGI_REMOTE_ADDRESS])) != OK)
+  {
+    mlCgiEndHttpHeader();
+    mlCgiFreeResources ();
+    showHtmlErrorPage (ret);
+    exit (ML_CGI_OK); 
+  }
+  
+  if ((ret = mlCgiSetCookie (cookieName, cookieValue, COOKIE_EXPIRATION, NULL, NULL, NULL)) != ML_CGI_OK)
+  {
+    mlCgiEndHttpHeader();
+    mlCgiFreeResources ();
+    showHtmlErrorPage (E_SET_COOKIE);
+    exit (ML_CGI_OK); 
+  }
+  mlCgiEndHttpHeader();
+  mlCgiFreeResources ();
+  
+  showHtmlInitialPage (cookieName);
+
+  exit (ML_CGI_OK);
+}
+
+/*$RCSfile: login.c,v $*/

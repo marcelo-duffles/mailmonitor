@@ -1,0 +1,786 @@
+head	1.6;
+access;
+symbols;
+locks
+	marcelo:1.6; strict;
+comment	@ * @;
+
+
+1.6
+date	2005.12.14.02.37.14;	author marcelo;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2005.12.14.02.21.05;	author marcelo;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2005.11.17.22.59.19;	author marcelo;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.11.11.21.59.31;	author marcelo;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.11.10.23.07.44;	author marcelo;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.11.09.19.18.49;	author marcelo;	state Exp;
+branches;
+next	;
+
+
+desc
+@Secundary functions source file
+@
+
+
+1.6
+log
+@sending() added
+@
+text
+@//===========================================================================//
+// Universidade Federal do Rio de Janeiro
+// Escola Politécnica
+// Departamento de Eletrônica e de Computação
+// Professor Marcelo Luiz Drumond Lanza
+// Internet and TCP/IP Architecture
+// Author: Marcelo Duffles Donato Moreira <marcelo@@gta.ufrj.br>
+// Description: Secundary functions source file
+// Date: 08/11/2005
+//===========================================================================//
+
+//===========================================================================//
+// mailmonitor - Mail Monitor Implementation - Anti-Spam and Anti-virus
+// by Marcelo Duffles Donato Moreira <marcelo@@gta.ufrj.br>
+// Copyright (C) 2005 Marcelo Duffles Donato Moreira
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program; if not, write to the Free Software
+// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+//===========================================================================//
+
+/*
+ *  RCS COMMENTS
+ *
+ *  $Author: marcelo $
+ *  $Date: 2005/12/14 02:21:05 $
+ *  
+ *  $Log: functions.c,v $
+ *  Revision 1.5  2005/12/14 02:21:05  marcelo
+ *  New functions added
+ *  Proxy() finished
+ *
+ *  Revision 1.4  2005/11/17 22:59:19  marcelo
+ *  tcp_local_connect(), tcp_remote_connect() and proxy() added
+ *
+ *  Revision 1.3  2005/11/11 21:59:31  marcelo
+ *  New functions source added
+ *
+ *  Revision 1.2  2005/11/10 23:07:44  marcelo
+ *  usage() added
+ *
+ *       
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <time.h>
+
+#include "const.h"
+#include "functions.h"
+
+
+/* Global variable which contains the error messages */
+char *error_messages[] =
+{
+  /* 00 */ "Success.",
+  /* 01 */ "Error while creating child process.",
+  /* 02 */ "Error changing current directory.",
+  /* 03 */ "Error closing standard files.",
+  /* 04 */ "Error: log_msg()",
+  /* 05 */ "Error: gethostname()",
+  /* 06 */ "Error: gethostbyname()",
+  /* 07 */ "Socket error",
+  /* 08 */ "Error: bind()",
+  /* 09 */ "Error: listen()",
+  /* 10 */ "Error: sigaction()",
+  /* 11 */ "Error: accept()",
+  /* 12 */ "Error: send()",
+  /* 13 */ "Error: invalid local POP3/SMTP port",
+  /* 14 */ "Error: invalid POP3 server port",
+  /* 15 */ "Error: recv()",
+  /* 16 */ "Error: tcp_local_connect()",
+  /* 17 */ "Error: proxy()",
+  /* 18 */ "Error: tcp_remote_connect()",
+  /* 19 */ "Error: connect()",
+  /* 20 */ "Error: delete_spam()",
+  /* 21 */ "Error opening user black list",
+};
+
+void usage (void)
+{
+  printf ("Usage: ./mailmonitor [-s|--smtp] -p|--port <POP3/SMTP port>\n\
+                                 -A|--Address <POP3/SMTP server address>\n\
+				 -P|--Port <POP3 server port>\n\
+				 -d|--directory <black list directory>\n");
+}
+
+/* This function appends the 'filename' string to 'path'
+ * and returns the result				*/
+char *getLongFilename (char *path, char *filename)
+{
+  char *longFilename;
+  
+  if (path == NULL)
+    return (NULL);
+  if (filename == NULL)
+    return (NULL);
+           
+  longFilename = (char *) malloc (strlen (path) + strlen (filename) +2);
+  if (longFilename == NULL)
+    return (NULL);
+        
+  strcpy (longFilename, path);
+  if ((path[0] == EOS) || (path[strlen (path) -1] != '/'))
+    strcat (longFilename, "/");
+  strcat (longFilename, filename);
+  
+  return (longFilename);
+}
+
+int get_string (FILE *file, unsigned max_len, char *string)
+{
+  unsigned i;
+  
+  if ((file == NULL) || (string == NULL))
+    return (ERROR);
+  
+  for (i = 0; i <= max_len; i++)
+  {
+    if ((fread (&string[i], 1, 1, file)) != 1)
+    {
+      if (ferror (file))
+        return (ERROR);
+      return (END_OF_FILE);
+    }
+    if (string[i] == '\n')
+    {
+      string[i] = EOS;
+      return (OK);
+    }
+  }
+  return (ERROR);
+}
+
+/* Function to log messages in log file */
+unsigned log_msg (char *message)
+{
+  FILE *log_file;
+  time_t t;
+  char *string;
+    
+  log_file = fopen (getLongFilename (DATA_DIR, LOG_FILE_NAME), "a+");
+  if (log_file == NULL)
+    return (EXIT_FAILURE);
+  
+  t = time (NULL);
+  string = ctime (&t);
+  string[strlen (string) -1] = EOS;
+  
+  if (message == NULL)
+  {
+    fprintf (log_file, "%s: %s\n", string, error_messages[E_LOG_MSG]);
+    fclose (log_file);
+    return (EXIT_FAILURE);
+  }
+
+  fprintf (log_file, "%s: %s\n", string, message);
+
+  fclose (log_file);
+  return (EXIT_FAILURE);
+};
+
+void sigchld_handler (int s)
+{
+  while (waitpid (-1, NULL, WNOHANG) > 0);
+}
+
+int sending (int socket, char *msg, int len, unsigned int flags)
+{
+  int ret;
+  unsigned bytes_sent;
+  char *buffer;
+  
+  buffer = (char *) calloc (len +1, sizeof (char));
+  memcpy (&buffer[0], &msg[0], len);
+  buffer[len] = EOS;
+  
+  for (bytes_sent = 0;;)
+  {
+    ret = send (socket, buffer, strlen (buffer), flags);
+    if (ret == ERROR)
+      return (ERROR);
+    bytes_sent += ret;
+    if (bytes_sent == len)
+      break;
+    strcpy (&buffer[0], &buffer[ret]);
+  } 
+  
+  free (buffer);
+  return (len);
+}
+int tcp_local_connect (int *sockfd, unsigned port)
+{
+  int		     ret;		/* returned value of functions	*/
+  struct sockaddr_in addr;		/* host address information	*/
+  int		     opt_val=1;		/* setsockopt() option value	*/
+
+  if (sockfd == NULL)
+    return (E_TCP_LOCAL_CONNECT);
+    
+  *sockfd = socket (PF_INET, SOCK_STREAM, 0);
+  if (*sockfd == ERROR)
+    return (E_SOCKET);
+
+  ret = setsockopt (*sockfd, SOL_SOCKET, SO_REUSEADDR, &opt_val, sizeof (int));
+  if (ret == ERROR)
+    return (E_SOCKET);        
+ 
+  addr.sin_family	= AF_INET;         
+  addr.sin_port		= htons (port);    
+  addr.sin_addr.s_addr	= INADDR_ANY;
+  memset (&(addr.sin_zero), EOS, 8); 
+
+  ret = bind (*sockfd, (struct sockaddr *) &addr, sizeof (struct sockaddr));
+  if (ret == ERROR)
+    return (E_BIND);
+    
+  return (OK);
+}
+
+int tcp_remote_connect (int *sockfd, unsigned remote_port,
+			struct hostent *server_addr)
+{
+  int		     ret;		/* returned value of functions	*/
+  struct sockaddr_in addr;		/* host address information	*/
+  int		     opt_val=1;		/* setsockopt() option value	*/
+
+  if ((sockfd == NULL) || (server_addr == NULL))
+    return (E_TCP_REMOTE_CONNECT);
+    
+  *sockfd = socket (PF_INET, SOCK_STREAM, 0);
+  if (*sockfd == ERROR)
+    return (E_SOCKET);
+
+  ret = setsockopt (*sockfd, SOL_SOCKET, SO_REUSEADDR, &opt_val, sizeof (int));
+  if (ret == ERROR)
+    return (E_SOCKET);        
+ 
+  addr.sin_family = AF_INET;         
+  addr.sin_port	  = htons (remote_port);    
+  addr.sin_addr	  = *((struct in_addr *) server_addr->h_addr);
+  memset (&(addr.sin_zero), EOS, 8); 
+
+  ret = connect (*sockfd, (struct sockaddr *) &addr, sizeof (struct sockaddr));
+  if (ret == ERROR)
+    return (E_CONNECT);
+    
+  return (OK);
+}
+
+char *get_username (char *username, char *buffer)
+{
+  unsigned i;
+
+  if ((buffer == NULL) || (username == NULL))
+    return (NULL);
+
+  for (i = 5; buffer[i] == ' '; i++);
+
+  strcpy (&username[0], &buffer[i]);
+  username[strlen (username) - 2] = EOS;
+
+  return (username);
+}
+
+char is_in_header (char *header, char *spam_addr)
+{
+  unsigned i;
+  
+  for (i = 0; strncmp (&header[i], "From", 4); i++);
+  
+  for (i += 6; header[i] != '@@'; i++)
+    if (!strncmp (&header[i], &spam_addr[0], strlen (spam_addr)))
+      return (1);
+  i++;
+  if (!strncmp (&header[i], &spam_addr[0], strlen (spam_addr)))
+    return (1);      
+    
+  return (0);
+}
+
+int delete_msg (int server_fd, unsigned msg_nb)
+{
+  char buffer[MAX_BUF_LEN +1];
+  char cmd[20];
+  int ret;
+  
+  sprintf (cmd, "DELE %u\r\n", msg_nb);
+
+  ret = sending (server_fd, cmd, strlen (cmd), 0);
+  if (ret == ERROR)
+    return (E_SEND);
+
+  ret = recv (server_fd, buffer, MAX_BUF_LEN, 0);
+  if (ret == ERROR)
+    return (E_RECV);
+    
+  buffer[ret -2] = EOS;
+  log_msg (buffer);
+  
+  return (OK);
+}
+
+int delete_spam (int server_fd, char *username, char *black_list_dir)
+{
+  FILE *file;
+  char deleted_msg;
+  char buffer[MAX_BUF_LEN +1];
+  char header[10*MAX_BUF_LEN +1];
+  char spam_addr[MAX_EMAIL_LEN +1];
+  char cmd[20];
+  int ret;
+  unsigned i, nb_msg, header_len;
+
+  if ((username == NULL) || (black_list_dir == NULL))
+    return (E_DELETE_SPAM);
+
+  ret = sending (server_fd, "STAT\r\n", 6, 0);
+  if (ret == ERROR)
+    return (E_SEND);
+
+  ret = recv (server_fd, buffer, MAX_BUF_LEN, 0);
+  if (ret == ERROR)
+    return (E_RECV);
+
+  if (strncmp (&buffer[0], "-ERR", 4))
+    nb_msg = atoi (&buffer[4]);
+
+  file = fopen (getLongFilename (black_list_dir, username), "r");
+  if (file == NULL)
+    return (E_OPEN_USER_BLACK_LIST);
+
+  for (;;)
+  {
+    ret = get_string (file, MAX_EMAIL_LEN, spam_addr);
+    
+    if (ret == END_OF_FILE)
+      break;
+      
+    if (ret == ERROR)
+      return (ERROR);
+      
+    if (ret == OK)
+    {
+      for (i = 1; i <= nb_msg; i++)
+      {
+	sprintf (cmd, "TOP %u 0\r\n", i);
+
+	ret = sending (server_fd, cmd, strlen (cmd), 0);
+	if (ret == ERROR)
+	  return (E_SEND);
+
+	/* Getting message header */
+	header[0] = EOS;
+	do
+	{
+	  ret = recv (server_fd, buffer, MAX_BUF_LEN, 0);
+	  if (ret == ERROR)
+	    return (E_RECV);
+	  buffer[ret] = EOS;
+	  
+	  deleted_msg = 0;
+	  if (!strncmp (&buffer[0], "-ERR", 4))
+	  {
+	    deleted_msg = 1;
+	    break;
+	  }
+	    
+	  strcat (header, buffer);
+	  header_len = strlen (header);
+
+          if ((header_len >= 5) && (!strncmp (&header[header_len -5], "\r\n.\r\n", 5)))
+	    break;
+	}
+        while (1);
+
+	if ((!deleted_msg) && (is_in_header (&header[0], &spam_addr[0])))
+	{
+	 ret = delete_msg (server_fd, i);
+	 if (ret != OK)
+	   return (ret);
+	}
+      }
+    }
+  }
+  fclose (file);
+
+  return (OK);
+}
+
+int proxy (int *client_fd, struct hostent *server_addr, unsigned pop3_server_port,
+	   char *black_list_dir)
+{
+  char	buffer[MAX_BUF_LEN +1];		/* buffer			*/
+  char  username[MAX_USERNAME_LEN +1];	/* username			*/
+  char  opt;				/* pop3 command			*/
+  char  missing;			/* nb of missing terminations	*/
+  int	server_fd;			/* server socket descriptor	*/
+  int	ret;				/* returned value of functions	*/
+  
+  if ((client_fd == NULL) || (server_addr == NULL) || (black_list_dir == NULL))
+    return (E_PROXY);
+    
+  /* Connecting to the POP3 server */
+  ret = tcp_remote_connect (&server_fd, pop3_server_port, server_addr);
+  if (ret != OK)
+    return (ret);
+    
+  for (opt = NOOP, missing = 0;;)
+  {
+    do
+    {
+      ret = recv (server_fd, buffer, MAX_BUF_LEN, 0);
+      if (ret == ERROR)
+        log_msg (error_messages[E_RECV]);
+	
+      /* Making buffer a NULL-terminated string */
+      buffer[ret] = EOS;
+  
+      ret = sending (*client_fd, buffer, strlen (buffer), 0);
+      if (ret == ERROR)
+        log_msg (error_messages[E_SEND]);
+
+      if ((ret == 0) || (!strncmp (&buffer[0], "-ERR", 4)))
+        break;
+	
+      if (opt == QUIT)
+        break;
+
+      if (missing == 1)
+	if ((strlen (buffer) >= 1) && (!strncmp (&buffer[0], "\n", 1)))
+	{
+	  opt = NOOP;
+	  missing   = 0;
+	  break;
+	}
+
+      if (missing == 2)
+	if ((strlen (buffer) >= 2) && (!strncmp (&buffer[0], "\r\n", 2)))
+	{
+	  opt = NOOP;
+	  missing   = 0;
+	  break;
+	}	
+
+      if (missing == 3)
+	if ((strlen (buffer) >= 3) && (!strncmp (&buffer[0], ".\r\n", 3)))
+	{
+	  opt = NOOP;
+	  missing   = 0;
+	  break;
+	}
+
+      if (missing == 4)
+	if ((strlen (buffer) >= 4) && (!strncmp (&buffer[0], "\n.\r\n", 1)))
+	{
+	  opt = NOOP;
+	  missing   = 0;
+	  break;
+	}
+
+      if ((strlen (buffer) >= 5) && (!strncmp (&buffer[ret-5], "\r\n.\r\n", 5)))
+      {
+        opt = NOOP;
+	missing   = 0;
+	break;
+      }
+
+      if ((strlen (buffer) >= 4) && (!strncmp (&buffer[ret-4], "\r\n.\r", 4)))
+	missing = 1;
+      if ((strlen (buffer) >= 3) && (!strncmp (&buffer[ret-3], "\r\n."  , 3)))
+	missing = 2;
+      if ((strlen (buffer) >= 2) && (!strncmp (&buffer[ret-2], "\r\n"   , 2)))
+	missing = 3;
+      if ((strlen (buffer) >= 1) && (!strncmp (&buffer[ret-1], "\r"     , 1)))
+	missing = 4;
+    }
+    while (opt == MULTILINE);
+    
+    if (opt == QUIT)
+      break;
+
+    if (opt == PASS)
+      if (strncmp (&buffer[0], "-ERR", 4))
+      {
+	/* Deleting SPAM... */
+	ret = delete_spam (server_fd, username, black_list_dir);
+	if (ret != OK)
+	  log_msg (error_messages[ret]);
+      }
+
+    ret = recv (*client_fd, buffer, MAX_BUF_LEN, 0);
+    if (ret == ERROR)
+      log_msg (error_messages[E_RECV]);
+	
+    /* Making buffer a NULL-terminated string */
+    buffer[ret] = EOS;
+  
+    ret = sending (server_fd, buffer, strlen (buffer), 0);
+    if (ret == ERROR)
+      log_msg (error_messages[E_SEND]);
+    
+    opt = NOOP;
+    if ((!strncmp (buffer, "USER", 4)) || (!strncmp (buffer, "user", 4)))
+    {
+      opt = USER;
+      get_username (&username[0], &buffer[0]);
+    }
+    if ((!strncmp (buffer, "QUIT", 4)) || (!strncmp (buffer, "quit", 4)))
+      opt = QUIT; 
+    if ((!strncmp (buffer, "PASS", 4)) || (!strncmp (buffer, "pass", 4)))
+      opt = PASS;
+    if ((!strncmp (buffer, "LIST", 4)) || (!strncmp (buffer, "list", 4)) ||
+	(!strncmp (buffer, "RETR", 4)) || (!strncmp (buffer, "retr", 4)) ||
+	(!strncmp (buffer, "UIDL", 4)) || (!strncmp (buffer, "uidl", 4)) ||
+	(!strncmp (buffer, "TOP" , 3)) || (!strncmp (buffer, "top" , 3)))
+      opt = MULTILINE;
+  }
+
+  close (server_fd);
+
+  return (OK);
+}
+
+
+/* $RCSfile: functions.c,v $ */
+@
+
+
+1.5
+log
+@New functions added
+Proxy() finished
+@
+text
+@d36 1
+a36 1
+ *  $Date: 2005/11/17 22:59:19 $
+d39 4
+d187 1
+a187 1
+int sending (int socket, const void *msg, int len, unsigned int flags)
+d193 3
+a195 2
+  buffer = (char *) calloc (strlen (msg) +1, sizeof (char));
+  strcpy (buffer, msg);
+d199 1
+a199 1
+    ret = send (socket, msg, buffer, flags);
+@
+
+
+1.4
+log
+@tcp_local_connect(), tcp_remote_connect() and proxy() added
+@
+text
+@d36 1
+a36 1
+ *  $Date: 2005/11/11 21:59:31 $
+d39 3
+d56 6
+d64 1
+a64 1
+#include "config.h"
+d91 2
+d126 24
+d155 1
+d162 3
+a164 1
+
+d167 1
+a167 1
+    fprintf (log_file, "%s ----- %s\n", error_messages[E_LOG_MSG], ctime (&t));
+d172 1
+a172 1
+  fprintf (log_file, "%s ----- %s\n", message, ctime (&t));
+d183 23
+d265 140
+d408 7
+a414 5
+  char	buffer[MAX_BUF_LEN +1];	/* buffer			*/
+  char  quit;			/* boolean			*/
+  int	server_fd;		/* server socket descriptor	*/
+  int	ret;			/* returned value of functions	*/
+
+d423 1
+a423 1
+  for (quit = 0;;)
+d425 5
+a429 3
+    ret = recv (server_fd, buffer, MAX_BUF_LEN, 0);
+    if (ret == ERROR)
+      log_msg (error_messages[E_RECV]);
+d431 2
+a432 3
+    /* Making buffer a NULL-terminated string */
+    buffer[ret] = EOS;
+    printf ("buffer-recv: %s\n", buffer); 
+d434 8
+a441 7
+    ret = send (*client_fd, buffer, strlen (buffer), 0);
+    if (ret == ERROR)
+      log_msg (error_messages[E_SEND]);
+    
+    if (quit)
+    { 
+      if (!strncmp (buffer, "+OK", 3))
+d443 48
+a490 2
+      else
+        quit = 0;
+d492 1
+d494 12
+a511 1
+    printf ("buffer-recv: %s\n", buffer);
+d513 1
+a513 1
+    ret = send (server_fd, buffer, strlen (buffer), 0);
+d516 16
+a531 3
+      
+    if (!strncmp (buffer, "QUIT", 4))
+      quit = 1; 
+d533 1
+a533 1
+      
+d535 1
+a535 1
+  
+@
+
+
+1.3
+log
+@New functions source added
+@
+text
+@d36 1
+a36 1
+ *  $Date: 2005/11/10 23:07:44 $
+d39 3
+d50 1
+d76 6
+d145 119
+@
+
+
+1.2
+log
+@usage() added
+@
+text
+@d35 2
+a36 2
+ *  $Author$
+ *  $Date$
+d38 4
+a41 1
+ *  $Log$
+d47 3
+a54 5
+void usage (void)
+{
+  printf ("Usage: ./mailmonitor -p|--port [porta POP3/SMTP que o programa vai escutar] -A|--Address [endereço POP3/SMTP server] -P|--Port [porta POP3 server] -d|--directory [diretorio listas/arquivo definição virus] [-s|--smtp]\n");
+}
+
+d65 7
+d74 31
+d109 1
+d111 1
+a111 1
+  log_file = fopen ("/gbfd/gbfd.log", "a+");
+d115 2
+d119 2
+a120 1
+    fprintf (log_file, "%s\n", error_messages[E_LOG_MSG]);
+d124 1
+a124 1
+  fprintf (log_file, "%s\n", message);
+d130 6
+a135 1
+/* $RCSfile$ */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 8
+a9 1
+// functions.c - source file of secundary functions
+d32 14
+d49 5
+d61 3
+a63 18
+  /* 04 */ "No packet has been read.",
+  /* 05 */ "ICMP protocol is unknown.",
+  /* 06 */ "Error opening socket.",
+  /* 07 */ "Error in IP header.",
+  /* 08 */ "Error sending datagram.",
+  /* 09 */ "Invalid host.",
+  /* 10 */ "Error opening neighborhood file.",
+  /* 11 */ "Neighborhood file (/gbfd/neighborhood.dat) doesn't exist.",
+  /* 12 */ "Error: send_packet()",
+  /* 13 */ "Error: build_packet()",
+  /* 14 */ "Error: log_msg()",
+  /* 15 */ "Error: gethostname()",
+  /* 16 */ "Error: gethostbyname()",
+  /* 17 */ "Error: get_neighbor_addr()",
+  /* 18 */ "Error: Invalid neighbor address.",
+  /* 19 */ "Error opening route file for write.",
+  /* 20 */ "Error sending route reply packet.",
+  /* 21 */ "Error sending request route packet.",
+d87 1
+@

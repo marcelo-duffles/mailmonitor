@@ -1,0 +1,288 @@
+head	1.5;
+access;
+symbols;
+locks
+	marcelo:1.5; strict;
+comment	@ * @;
+
+
+1.5
+date	2005.12.14.02.37.38;	author marcelo;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2005.12.14.02.21.28;	author marcelo;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.11.17.23.00.01;	author marcelo;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.11.11.21.58.29;	author marcelo;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.11.09.19.18.28;	author marcelo;	state Exp;
+branches;
+next	;
+
+
+desc
+@Secundary functions header file
+@
+
+
+1.5
+log
+@sending() added
+@
+text
+@//===========================================================================//
+// Universidade Federal do Rio de Janeiro
+// Escola Politécnica
+// Departamento de Eletrônica e de Computação
+// Professor Marcelo Luiz Drumond Lanza
+// Internet and TCP/IP's Architecture
+// Author: Marcelo Duffles Donato Moreira <marcelo@@gta.ufrj.br>
+// Description: Secundary functions header file
+// Date: 08/11/2005
+//===========================================================================//
+
+//===========================================================================//
+// mailmonitor - Mail Monitor Implementation - Anti-Spam and Anti-virus
+// by Marcelo Duffles Donato Moreira <marcelo@@gta.ufrj.br>
+// Copyright (C) 2005 Marcelo Duffles Donato Moreira
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program; if not, write to the Free Software
+// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+//===========================================================================//
+
+/*
+ *  RCS COMMENTS
+ *
+ *  $Author: marcelo $
+ *  $Date: 2005/12/14 02:21:28 $
+ *  
+ *  $Log: functions.h,v $
+ *  Revision 1.4  2005/12/14 02:21:28  marcelo
+ *  New functions added
+ *
+ *  Revision 1.3  2005/11/17 23:00:01  marcelo
+ *  tcp_local_connect(), tcp_remote_connect() and proxy() prototypes added
+ *
+ *  Revision 1.2  2005/11/11 21:58:29  marcelo
+ *  New functions prototypes added
+ *
+ *  Revision 1.1  2005/11/09 19:18:28  marcelo
+ *  Initial revision
+ *
+ *       
+ */
+
+#ifndef _FUNCTIONS_H_
+#define _FUNCTIONS_H_ "@@(#)functions.h $Revision: 1.4 $"
+
+#include <netdb.h>
+
+
+//====================================================================//
+// Global variables
+//====================================================================//
+extern char *error_messages[];
+
+
+//====================================================================//
+// Secundary functions prototypes
+//====================================================================//
+void usage (void);
+unsigned log_msg (char *message);
+char *getLongFilename (char *path, char *filename);
+void sigchld_handler (int s);
+int sending (int socket, char *msg, int len, unsigned int flags);
+int tcp_local_connect (int *sockfd, unsigned local_port);
+int tcp_remote_connect (int *sockfd, unsigned remote_port,
+			struct hostent *server_addr);
+char *get_username (char *username, char *buffer);
+char is_in_header (char *header, char *spam_addr);
+int delete_msg (int server_fd, unsigned msg_nb);
+int delete_spam (int server_fd, char *username,
+		 char *black_list_dir);
+int proxy (int *client_fd, struct hostent *server_addr,
+	   unsigned pop3_server_port, char *black_list_dir);
+
+	   
+#endif /* _FUNCTIONS_H_ */
+
+/* $RCSfile: functions.h,v $ */
+@
+
+
+1.4
+log
+@New functions added
+@
+text
+@d36 1
+a36 1
+ *  $Date: 2005/11/17 23:00:01 $
+d39 3
+d55 1
+a55 1
+#define _FUNCTIONS_H_ "@@(#)functions.h $Revision: 1.3 $"
+d73 1
+a73 1
+int sending (int socket, const void *msg, int len, unsigned int flags);
+@
+
+
+1.3
+log
+@tcp_local_connect(), tcp_remote_connect() and proxy() prototypes added
+@
+text
+@d36 1
+a36 1
+ *  $Date: 2005/11/11 21:58:29 $
+d39 3
+d52 1
+a52 1
+#define _FUNCTIONS_H_ "@@(#)functions.h $Revision: 1.2 $"
+d70 1
+d74 5
+@
+
+
+1.2
+log
+@New functions prototypes added
+@
+text
+@d36 1
+a36 1
+ *  $Date: 2005/11/09 19:18:28 $
+d39 3
+d49 3
+a51 1
+#define _FUNCTIONS_H_ "@@(#)functions.h $Revision: 1.1 $"
+d59 1
+d67 5
+d73 1
+a73 1
+
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d35 2
+a36 2
+ *  $Author$
+ *  $Date$
+d38 4
+a41 1
+ *  $Log$
+d46 1
+a46 67
+#define _FUNCTIONS_H_ "@@(#)functions.h $Revision$"
+
+
+//====================================================================//
+// Setting constants
+//====================================================================//
+
+/* Error constants */
+#define GBFD_EOF			-2
+#define ERROR				-1
+#define OK				0
+#define E_CREATING_CHILD_SESSION	1
+#define E_CHANGING_DIRECTORY		2
+#define E_CLOSING_STANDARD_FILES	3
+#define E_NO_PACKET			4
+#define E_UNKNOWN_PROTO_ICMP		5
+#define E_OPENING_SOCKET		6
+#define E_IP_HEADER			7
+#define E_SENDING_DATAGRAM		8
+#define E_INVALID_HOST			9
+#define E_OPEN_NEIGHBOR_FILE		10
+#define E_NO_NEIGHBOR_FILE		11
+#define E_SEND_PACKET			12
+#define E_BUILD_PACKET			13
+#define E_LOG_MSG			14
+#define E_GETHOSTNAME			15
+#define E_GETHOSTBYNAME			16
+#define E_GET_NEIGHBOR_ADDR		17
+#define E_INVAL_ADDR			18
+#define E_OPEN_ROUTE_FILE		19
+#define E_SEND_ROUTE_REPLY_PACKET	20
+#define E_SEND_REQUEST_ROUTE_PACKET	21
+
+
+/* the size of the option gbf field */
+#define OPTION_GBF_SIZE 40
+
+/* number of addresses in packet data */
+#define NB_OF_ADDRESSES 50
+
+/* data size */
+#define DATA_SIZE (NB_OF_ADDRESSES*4 +1)
+
+/* total size of the packet */
+#define PACKET_SIZE	sizeof(struct ip)	+\
+			sizeof(struct icmphdr)	+\
+			OPTION_GBF_SIZE		+\
+			DATA_SIZE
+
+/* index of FLAG option in packet data */
+#define FLAG_INDEX	sizeof (struct ip) + OPTION_GBF_SIZE + sizeof (struct icmphdr)
+
+/* timeout in seconds */
+#define TIMEOUT			  60
+#define INITIAL_NODE_TIMEOUT	  90
+#define INTERMEDIATE_NODE_TIMEOUT 10
+
+/* node types values */
+#define INITIAL_NODE		'i'
+#define INTERMEDIATE_NODE	't'
+
+/* flags in packet data */
+#define REQUEST_ROUTE		1
+#define ROUTE_REPLY		2
+
+/* number of arguments of main program */
+#define NB_ARGS			2
+d52 1
+a52 9
+extern pcap_t	*pkt_descr;		/* packet capture descriptor	*/
+extern unsigned initial_time;		/* time when pcap_loop() starts	*/
+extern char	*error_messages[];	/* contains the error messages  */
+extern int      node_type;		/* initial or intermediate node */
+extern unsigned nb_routes;		/* total number of routes	*/
+extern unsigned	src_addr;		/* source address		*/
+extern unsigned	nb_neighbors;		/* number of neighbors	   	*/
+extern char     *neighbors_array[300];	/* array of neighbors		*/
+
+d57 1
+d59 3
+d65 1
+a65 1
+/* $RCSfile$ */
+@

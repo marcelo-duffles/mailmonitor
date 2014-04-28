@@ -1,0 +1,662 @@
+head	1.5;
+access;
+symbols;
+locks
+	marcelo:1.5; strict;
+comment	@ * @;
+
+
+1.5
+date	2005.12.14.01.50.42;	author marcelo;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2005.11.17.23.28.14;	author marcelo;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.11.11.21.48.04;	author marcelo;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.11.10.23.06.36;	author marcelo;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.11.09.19.17.34;	author marcelo;	state Exp;
+branches;
+next	;
+
+
+desc
+@Main program
+@
+
+
+1.5
+log
+@Main loop finished
+@
+text
+@//===========================================================================//
+// Universidade Federal do Rio de Janeiro
+// Escola Politécnica
+// Departamento de Eletrônica e de Computação
+// Professor Marcelo Luiz Drumond Lanza
+// Internet and TCP/IP Architecture
+// Author: Marcelo Duffles Donato Moreira <marcelo@@gta.ufrj.br>
+// Description: Main program source file
+// Date: 08/11/2005
+//===========================================================================//
+
+//===========================================================================//
+// mailmonitor - Mail Monitor Implementation - Anti-Spam and Anti-virus
+// by Marcelo Duffles Donato Moreira <marcelo@@gta.ufrj.br>
+// Copyright (C) 2005 Marcelo Duffles Donato Moreira
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program; if not, write to the Free Software
+// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+//===========================================================================//
+
+/*
+ *  RCS COMMENTS
+ *
+ *  $Author: marcelo $
+ *  $Date: 2005/11/17 23:28:14 $
+ *  
+ *  $Log: mailmonitor.c,v $
+ *  Revision 1.4  2005/11/17 23:28:14  marcelo
+ *  Big Loop added
+ *  Next step: improve proxy() function
+ *
+ *  Revision 1.3  2005/11/11 21:48:04  marcelo
+ *  POP3 server initialization have been made
+ *  Next step: fill variables with argument's data
+ *
+ *  Revision 1.2  2005/11/10 23:06:36  marcelo
+ *  Added options handling
+ *
+ *  Revision 1.1  2005/11/09 19:17:34  marcelo
+ *  Initial revision
+ *       
+ */
+ 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/wait.h>
+#include <signal.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <syslog.h>
+#include <getopt.h>
+#include <errno.h>
+
+#include "const.h"
+#include "functions.h"
+
+static const char rcsid[] = "$Id: mailmonitor.c,v 1.4 2005/11/17 23:28:14 marcelo Exp marcelo $";
+
+int main (int argc, char **argv)
+{
+  unsigned	     nb_options;	/* number of options		*/
+  unsigned	     local_port;	/* local POP3/SMTP port		*/
+  unsigned	     pop3_server_port;	/* POP3 server port		*/
+  char		     *black_list_dir;	/* black list directory		*/
+  char		     *endptr[10];	/* used by strtol()		*/
+  char		     option;		/* command line option		*/
+  char		     is_smtp_server=0;	/* boolean			*/
+  int		     ret;		/* returned value of functions	*/
+  int		     sockfd;		/* socket file descriptor	*/
+  int		     client_fd;		/* client socket descriptor	*/
+  pid_t		     child_pid;		/* child process ID		*/
+  pid_t		     child_sid;		/* child process session ID	*/
+  FILE		     *log_file;		/* log file			*/
+  struct hostent     *server_addr;	/* POP3/SMTP server address	*/
+  struct sockaddr_in client_addr;	/* client address information	*/
+  struct sigaction   sa;		/* sigaction structure		*/
+  socklen_t	     sin_size;		/* socket length		*/
+
+  /* string of short options */
+  char string_options[] = "p:A:P:d:s";
+
+  /* structure of long options */
+  static struct option options[] = 
+  {
+    {"port",	  1, 0, 'p'},
+    {"Address",   1, 0, 'A'},
+    {"Port",	  1, 0, 'P'},
+    {"directory", 1, 0, 'd'},
+    {"smtp",	  0, 0, 's'},
+    {0, 0, 0, 0}
+  };
+  
+  
+  //====================================================================//
+  // Getting program options
+  //====================================================================//
+
+  if ((argc != MIN_NB_ARGS) && (argc != MAX_NB_ARGS))
+  {
+    usage();
+    exit (EXIT_FAILURE);
+  }
+
+  for (opterr = 0, nb_options = 0; ; nb_options++)
+  {
+    option = getopt_long (argc, argv, string_options, options, NULL);
+
+    if (option == EOF)
+      break;
+
+    if ((optarg != NULL) && (optarg[0] == '-'))
+    {
+      usage();
+      exit (EXIT_FAILURE);
+    }
+
+    switch (option)
+    {
+      case 'p':
+        local_port = strtol (optarg, &endptr[0], 10);
+	if ((local_port == 0) || (*endptr[0] != EOS))
+	  exit (log_msg (error_messages[E_INVAL_LOCAL_PORT]));
+      break;
+
+      case 'A':
+	server_addr = gethostbyname (optarg);
+	if (server_addr == NULL)
+	  exit (log_msg (error_messages[E_GETHOSTBYNAME]));
+      break;
+
+      case 'P':
+        pop3_server_port = strtol (optarg, &endptr[0], 10);
+	if ((pop3_server_port == 0) || (*endptr[0] != EOS))
+	  exit (log_msg (error_messages[E_INVAL_POP3_SERVER_PORT]));
+      break;
+
+      case 'd':
+	black_list_dir = (char *) calloc (strlen (optarg) +1, sizeof (char));
+	strcpy (black_list_dir, optarg);
+      break;
+
+      case 's':
+        if ((optarg != NULL) && (optarg[0] != '-'))
+	{
+          usage();
+          exit (EXIT_FAILURE);
+	}
+	is_smtp_server = 1;
+      break;
+
+      default:
+        usage();
+        exit (EXIT_FAILURE);
+    }
+  }
+
+  if ((nb_options != MIN_NB_OPTIONS) && (nb_options != MAX_NB_OPTIONS))
+  {
+    usage();
+    exit (EXIT_FAILURE);
+  }
+    
+  
+  //====================================================================//
+  // Initializing Daemon
+  //====================================================================//
+  
+  /* Creating child process */
+  child_pid = fork();
+  if (child_pid == ERROR)
+    exit (EXIT_FAILURE);
+
+  /* Leaving the parent process */
+  if (child_pid > 0)
+    exit (EXIT_SUCCESS);
+
+  /* Setting file creation mode mask */
+  umask (0);
+  
+  /* Creating log file */
+  log_file = fopen (getLongFilename (DATA_DIR, LOG_FILE_NAME), "a");
+  if (log_file == NULL)
+    exit (EXIT_FAILURE);
+  fclose (log_file);
+  
+  /* Creating a new session for the child process */
+  child_sid = setsid ();
+  if (child_sid == ERROR)
+    exit (log_msg (error_messages[E_CREATING_CHILD_SESSION]));
+
+  /* Changing the current working directory */
+  if (chdir("/"))
+    exit (log_msg (error_messages[E_CHANGING_DIRECTORY]));
+
+  /* Closing out the standard file descriptors */
+  if (close(STDIN_FILENO))
+    exit (log_msg (error_messages[E_CLOSING_STANDARD_FILES]));
+  if (close(STDOUT_FILENO))
+    exit (log_msg (error_messages[E_CLOSING_STANDARD_FILES]));
+  if (close(STDERR_FILENO))
+    exit (log_msg (error_messages[E_CLOSING_STANDARD_FILES]));
+
+  sa.sa_handler = sigchld_handler; /* reap all dead processes */
+  sigemptyset (&sa.sa_mask);
+  sa.sa_flags = SA_RESTART;
+  ret = sigaction (SIGCHLD, &sa, NULL);
+  if (ret == ERROR)
+    exit (log_msg (error_messages[E_SIGACTION]));
+  
+   
+  //====================================================================//
+  // Initializing (local) POP3 server
+  //====================================================================//
+     
+  ret = tcp_local_connect (&sockfd, local_port);
+  if (ret != OK)
+    exit (log_msg (error_messages[ret]));
+    
+  ret = listen (sockfd, MAX_CONNECTIONS);
+  if (ret == ERROR)
+    exit (log_msg (error_messages[E_LISTEN]));
+    
+      
+  //====================================================================//
+  // The Main Loop
+  //====================================================================//
+  
+  while (1)
+  {  
+    sin_size = sizeof (struct sockaddr_in);
+    
+    /* Accepting incoming connection from client */
+    client_fd = accept (sockfd, (struct sockaddr *) &client_addr, &sin_size);
+    if (client_fd == ERROR)
+    {
+      log_msg (error_messages[E_ACCEPT]);
+      continue;
+    }
+
+    if (!fork())
+    { 
+      /* Closing parent socket file descriptor */
+      close (sockfd); 
+
+      /* Starting to proxy */
+      ret = proxy (&client_fd, server_addr, pop3_server_port, black_list_dir);
+      if (ret != OK)
+        log_msg (error_messages[ret]);
+
+      /* Closing child socket file descriptor */
+      close (client_fd); 
+      
+      /* Exiting client process */
+      exit (EXIT_SUCCESS);
+    }
+
+    /* Closing child socket file descriptor */
+    close (client_fd); 
+  }
+
+  exit (EXIT_SUCCESS);
+}
+
+/* $RCSfile: mailmonitor.c,v $ */
+@
+
+
+1.4
+log
+@Big Loop added
+Next step: improve proxy() function
+@
+text
+@d36 1
+a36 1
+ *  $Date: 2005/11/11 21:48:04 $
+d39 4
+d72 1
+a72 1
+#include "config.h"
+d75 1
+a75 1
+static const char rcsid[] = "$Id: mailmonitor.c,v 1.3 2005/11/11 21:48:04 marcelo Exp marcelo $";
+d214 6
+a219 6
+//  if (close(STDIN_FILENO))
+  //  exit (log_msg (error_messages[E_CLOSING_STANDARD_FILES]));
+  //if (close(STDOUT_FILENO))
+    //exit (log_msg (error_messages[E_CLOSING_STANDARD_FILES]));
+  //if (close(STDERR_FILENO))
+    //exit (log_msg (error_messages[E_CLOSING_STANDARD_FILES]));
+d227 1
+a227 13
+    
+  /*
+   * Algoritmo:
+   *
+   * 1) Iniciar servidor POP3 escutando na porta DEFAULT_PORT
+   * 2) Receber solicitações do cliente
+   * 3) Repassar solicitações ao servidor da WWW2
+   * 4) Receber respostas do servidor da WWW2.
+   * 5) Após a autenticação, deletar mensagens de acordo com a BLACK_LIST
+   * 6) Repassar respostas ao cliente.
+   *
+   */
+
+d243 1
+a243 1
+  // The Big Loop
+d262 2
+a263 1
+      
+d267 3
+d271 1
+a271 4
+      /* Closing child socket file descriptor */
+      close (client_fd);
+    
+      /* Exiting child process */
+d274 3
+d278 1
+a278 1
+  
+@
+
+
+1.3
+log
+@POP3 server initialization have been made
+Next step: fill variables with argument's data
+@
+text
+@d36 1
+a36 1
+ *  $Date: 2005/11/10 23:06:36 $
+d39 4
+d57 1
+d71 1
+a71 1
+static const char rcsid[] = "$Id: mailmonitor.c,v 1.2 2005/11/10 23:06:36 marcelo Exp marcelo $";
+a74 1
+  unsigned	     i;			/* dummy variable		*/
+d76 3
+a78 1
+  unsigned	     local_port;	/* POP3/SMTP port		*/
+d81 1
+a81 1
+  int		     opt_val=1;		/* setsockopt() option value	*/
+d84 1
+a84 1
+  int		     new_fd;		/* new connections descriptor   */
+d88 1
+a89 1
+  struct sockaddr_in local_addr;	/* local host address info	*/
+d140 3
+a142 1
+        printf ("Option 'A', argument: %s\n", optarg);
+d146 3
+a148 1
+        printf ("Option 'P', argument: %s\n", optarg);
+d152 2
+a153 1
+        printf ("Option 'd', argument: %s\n", optarg);
+a156 1
+        printf ("Option 's'\n");
+d162 1
+d195 1
+a195 1
+  log_file = fopen (getLongFilename (DATA_DIR, LOG_FILE_NAME), "w");
+d217 7
+d231 1
+a231 1
+   * 5) Analisar respostas
+d238 1
+a238 1
+  // Initializing POP3 server
+d241 4
+a244 17
+  sockfd = socket (PF_INET, SOCK_STREAM, 0);
+  if (sockfd == ERROR)
+    exit (log_msg (error_messages[E_SOCKET]));
+
+  ret = setsockopt (sockfd, SOL_SOCKET, SO_REUSEADDR, &opt_val, sizeof (int));
+  if (ret == ERROR)
+    exit (log_msg (error_messages[E_SOCKET]));        
+ 
+  local_addr.sin_family		= AF_INET;         
+  local_addr.sin_port		= htons (POP3_SERVER_PORT);    
+  local_addr.sin_addr.s_addr	= INADDR_ANY;
+  memset (&(local_addr.sin_zero), EOS, 8); 
+
+  ret = bind (sockfd, (struct sockaddr *) &local_addr, sizeof (struct sockaddr));
+  if (ret == ERROR)
+    exit (log_msg (error_messages[E_BIND]));
+
+a247 8
+     
+  sa.sa_handler = sigchld_handler; /* reap all dead processes */
+  sigemptyset (&sa.sa_mask);
+  sa.sa_flags = SA_RESTART;
+  ret = sigaction (SIGCHLD, &sa, NULL);
+  if (ret == ERROR)
+    exit (log_msg (error_messages[E_SIGACTION]));
+     
+d249 1
+d251 1
+a251 1
+  // Waiting for incoming connections...
+d258 3
+a260 2
+    new_fd = accept (sockfd, (struct sockaddr *) &client_addr, &sin_size);
+    if (new_fd == ERROR)
+a265 2
+//    printf("server: got connection from %s\n",inet_ntoa(client_addr.sin_addr));
+        
+d267 12
+a278 6
+    { // this is the child process
+      close (sockfd); // child doesn't need the listener
+      ret = send (new_fd, "Hello, world!\n", 14, 0);
+      if (ret == ERROR)
+        log_msg (error_messages[E_SEND]);
+      close (new_fd);
+a280 2
+        
+    close (new_fd);  // parent doesn't need this
+d282 1
+a282 1
+
+@
+
+
+1.2
+log
+@Added options handling
+@
+text
+@d36 1
+a36 1
+ *  $Date: 2005/11/09 19:17:34 $
+d39 3
+a43 1
+ *
+d46 4
+a49 1
+
+d51 1
+d53 4
+a56 2
+#include <stdio.h>
+#include <stdlib.h>
+d61 1
+d66 1
+a66 1
+static const char rcsid[] = "$Id: mailmonitor.c,v 1.1 2005/11/09 19:17:34 marcelo Exp marcelo $";
+d70 16
+a85 7
+  unsigned	     i;				/* dummy variable		*/
+  unsigned	     nb_options;		/* number of options		*/
+  int		     ret;			/* returned value of functions	*/
+  pid_t		     child_pid;			/* child process ID		*/
+  pid_t		     child_sid;			/* child process session ID	*/
+  FILE		     *log_file;			/* log file			*/
+  char option;
+d101 1
+d122 1
+a122 1
+      exit (1);
+d128 3
+a130 1
+        printf ("Option 'p', argument: %s\n", optarg);
+d150 1
+a150 1
+          exit (1);
+d156 1
+a156 1
+        exit (1);
+d163 1
+a164 2
+
+
+d172 3
+a174 3
+//  child_pid = fork();
+//  if (child_pid == ERROR)
+//    exit (EXIT_FAILURE);
+d177 2
+a178 2
+//  if (child_pid > 0)
+//    exit (EXIT_SUCCESS);
+d181 1
+a181 1
+//  umask (0);
+a182 4
+  /* Creating gbfd daemon directory */
+//  if ((mkdir ("/gbfd", 0) == ERROR) && (errno != EEXIST))
+  //  exit (EXIT_FAILURE);
+    
+d184 4
+a187 7
+//  log_file = fopen ("/gbfd/gbfd.log", "w");
+//  if (log_file == NULL)
+  //  exit (EXIT_FAILURE);
+//  fclose (log_file);
+  
+  /* Writing initial message in log file */
+//  log_msg ("GBFD Daemon Log File\n=====================\n\n");
+d190 3
+a192 3
+//  child_sid = setsid ();
+//  if (child_sid == ERROR)
+//    exit (log_msg (error_messages[E_CREATING_CHILD_SESSION]));
+d195 2
+a196 2
+//  if (chdir("/gbfd"))
+//    exit (log_msg (error_messages[E_CHANGING_DIRECTORY]));
+d218 64
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d35 2
+a36 2
+ *  $Author$
+ *  $Date$
+d38 4
+a41 1
+ *  $Log$
+d45 13
+a57 1
+static const char rcsid[] = "$Id$";
+d62 1
+d67 4
+a70 1
+  char		     string_options[] = "it";	/* string of options		*/
+a71 1
+  
+d75 5
+a79 2
+    {"initial_node",	  0, 0, INITIAL_NODE},
+    {"intermediate_node", 0, 0, INTERMEDIATE_NODE},
+d86 2
+a87 2
+  
+  if (argc != NB_ARGS) 
+d89 1
+a89 1
+    printf ("Usage: ./gbfd [-i|--initial_node] [-t|--intermediate_node]\n");
+d92 2
+a93 5
+  
+  opterr = 0;
+  
+  if (((node_type = getopt_long (argc, argv, string_options, options, NULL)) == EOF)
+      || (node_type == '?'))
+d95 42
+a136 2
+    printf ("Usage: ./gbfd [-i|--initial_node] [-t|--intermediate_node]\n");
+    exit (EXIT_FAILURE);
+d138 2
+a139 2
+  
+  if (getopt_long (argc, argv, string_options, options, NULL) != EOF)
+d141 1
+a141 3
+    printf ("More than one option have been selected.\n");
+    printf ("Usage: ./gbfd [-i|--initial_node] [-t|--intermediate_node]\n");
+    exit (EXIT_FAILURE);
+d143 2
+d161 1
+a161 1
+  umask (0);
+d164 2
+a165 2
+  if ((mkdir ("/gbfd", 0) == ERROR) && (errno != EEXIST))
+    exit (EXIT_FAILURE);
+d168 4
+a171 4
+  log_file = fopen ("/gbfd/gbfd.log", "w");
+  if (log_file == NULL)
+    exit (EXIT_FAILURE);
+  fclose (log_file);
+d174 1
+a174 1
+  log_msg ("GBFD Daemon Log File\n=====================\n\n");
+d182 2
+a183 2
+  if (chdir("/gbfd"))
+    exit (log_msg (error_messages[E_CHANGING_DIRECTORY]));
+d193 12
+a204 1
+  
+d208 1
+a208 1
+/* $RCSfile$ */
+@
